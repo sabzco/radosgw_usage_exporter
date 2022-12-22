@@ -174,10 +174,6 @@ class RADOSGWCollector(object):
                 GaugeMetricFamily('radosgw_usage_bucket_quota_size',
                                   'Maximum allowed bucket size',
                                   labels=["bucket", "owner", "zonegroup", "cluster", "tags"]),
-            'bucket_quota_max_size_bytes':
-                GaugeMetricFamily('radosgw_usage_bucket_quota_size_bytes',
-                                  'Maximum allowed bucket size in bytes',
-                                  labels=["bucket", "owner", "zonegroup", "cluster", "tags"]),
             'bucket_quota_max_objects':
                 GaugeMetricFamily('radosgw_usage_bucket_quota_size_objects',
                                   'Maximum allowed bucket size in number of objects',
@@ -198,10 +194,6 @@ class RADOSGWCollector(object):
                 GaugeMetricFamily('radosgw_usage_user_quota_size',
                                   'Maximum allowed size for user',
                                   labels=["user", "cluster"]),
-            'user_quota_max_size_bytes':
-                GaugeMetricFamily('radosgw_usage_user_quota_size_bytes',
-                                  'Maximum allowed size in bytes for user',
-                                  labels=["user", "cluster"]),
             'user_quota_max_objects':
                 GaugeMetricFamily('radosgw_usage_user_quota_size_objects',
                                   'Maximum allowed number of objects across all user buckets',
@@ -213,10 +205,6 @@ class RADOSGWCollector(object):
             'user_bucket_quota_max_size':
                 GaugeMetricFamily('radosgw_usage_user_bucket_quota_size',
                                   'Maximum allowed size for each bucket of user',
-                                  labels=["user", "cluster"]),
-            'user_bucket_quota_max_size_bytes':
-                GaugeMetricFamily('radosgw_usage_user_bucket_quota_size_bytes',
-                                  'Maximum allowed size bytes size for each bucket of user',
                                   labels=["user", "cluster"]),
             'user_bucket_quota_max_objects':
                 GaugeMetricFamily('radosgw_usage_user_bucket_quota_size_objects',
@@ -366,9 +354,6 @@ class RADOSGWCollector(object):
                 self._prometheus_metrics['bucket_quota_max_size'].add_metric(
                     [bucket_name, bucket_owner, bucket_zonegroup, self.cluster_name, taglist],
                     bucket['bucket_quota']['max_size'])
-                self._prometheus_metrics['bucket_quota_max_size_bytes'].add_metric(
-                    [bucket_name, bucket_owner, bucket_zonegroup, self.cluster_name, taglist],
-                    bucket['bucket_quota']['max_size_kb'] * 1024)
                 self._prometheus_metrics['bucket_quota_max_objects'].add_metric(
                     [bucket_name, bucket_owner, bucket_zonegroup, self.cluster_name, taglist],
                     bucket['bucket_quota']['max_objects'])
@@ -435,8 +420,6 @@ class RADOSGWCollector(object):
                 [user, self.cluster_name], quota['enabled'])
             self._prometheus_metrics['user_quota_max_size'].add_metric(
                 [user, self.cluster_name], quota['max_size'])
-            self._prometheus_metrics['user_quota_max_size_bytes'].add_metric(
-                [user, self.cluster_name], quota['max_size_kb'] * 1024)
             self._prometheus_metrics['user_quota_max_objects'].add_metric(
                 [user, self.cluster_name], quota['max_objects'])
 
@@ -446,8 +429,6 @@ class RADOSGWCollector(object):
                 [user, self.cluster_name], quota['enabled'])
             self._prometheus_metrics['user_bucket_quota_max_size'].add_metric(
                 [user, self.cluster_name], quota['max_size'])
-            self._prometheus_metrics['user_bucket_quota_max_size_bytes'].add_metric(
-                [user, self.cluster_name], quota['max_size_kb'] * 1024)
             self._prometheus_metrics['user_bucket_quota_max_objects'].add_metric(
                 [user, self.cluster_name], quota['max_objects'])
 
