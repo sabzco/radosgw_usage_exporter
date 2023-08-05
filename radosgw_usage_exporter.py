@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import threading
 import time
 import requests
 import warnings
@@ -15,6 +16,8 @@ from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGIS
 
 logging.basicConfig(level=logging.DEBUG)
 DEBUG = int(os.environ.get('DEBUG', '0'))
+COLLECT_INTERVAL = int(os.environ.get('COLLECT_INTERVAL', '0'))
+RAISE_ERRORS = COLLECT_INTERVAL != 0
 
 
 class RADOSGWCollector(object):
@@ -45,8 +48,20 @@ class RADOSGWCollector(object):
         self.url = "{0}{1}/".format(self.host, admin_entry)
         # Prepare Requests Session
         self._session()
+        self._last_collected = []
+        if COLLECT_INTERVAL:
+            threading.Thread(target=self.collect_thread, daemon=True).start()
+
+    def collect_thread(self):
+        while True:
+            start = time.monotonic()
+            self._last_collected = self._collect()
+            time.sleep(max(0., COLLECT_INTERVAL - (time.monotonic() - start)))
 
     def collect(self):
+        return self._last_collected if COLLECT_INTERVAL else self._collect()
+
+    def _collect(self):
         """
         * Collect 'usage' data:
             http://docs.ceph.com/docs/master/radosgw/adminops/#get-usage
@@ -83,8 +98,7 @@ class RADOSGWCollector(object):
         self._prometheus_metrics['scrape_duration_seconds'].add_metric(
             [], duration)
 
-        for metric in list(self._prometheus_metrics.values()):
-            yield metric
+        return list(self._prometheus_metrics.values())
 
     def _session(self):
         """
@@ -123,12 +137,16 @@ class RADOSGWCollector(object):
                 return response.json()
             else:
                 # Usage caps absent or wrong admin entry
-                print(("Request error [{0}]: {1}".format(
-                    response.status_code, response.content.decode('utf-8'))))
+                msg = "Request error [{0}]: {1}".format(response.status_code, response.content.decode('utf-8'))
+                if RAISE_ERRORS:
+                    raise Exception(msg)
+                print(msg)
                 return
 
         # DNS, connection errors, etc
         except requests.exceptions.RequestException as e:
+            if RAISE_ERRORS:
+                raise
             print(("Request error: {0}".format(e)))
             return
 
