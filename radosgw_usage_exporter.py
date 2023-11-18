@@ -17,7 +17,9 @@ from collections import defaultdict, Counter
 from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGISTRY
 from prometheus_client.exposition import ThreadingWSGIServer, make_wsgi_app
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(name)s %(message)s',
+                    datefmt='%m/%d/%Y %H:%M:%S')
 DEBUG = int(os.environ.get('DEBUG', '0'))
 COLLECT_INTERVAL = int(os.environ.get('COLLECT_INTERVAL', '0'))
 RAISE_ERRORS = COLLECT_INTERVAL != 0
