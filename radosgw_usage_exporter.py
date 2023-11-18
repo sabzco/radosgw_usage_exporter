@@ -3,6 +3,9 @@
 
 import threading
 import time
+from urllib.parse import parse_qs
+from wsgiref.simple_server import make_server
+
 import requests
 import warnings
 import logging
@@ -10,9 +13,9 @@ import json
 import argparse
 import os
 from awsauth import S3Auth
-from prometheus_client import start_http_server
 from collections import defaultdict, Counter
 from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGISTRY
+from prometheus_client.exposition import ThreadingWSGIServer, make_wsgi_app
 
 logging.basicConfig(level=logging.DEBUG)
 DEBUG = int(os.environ.get('DEBUG', '0'))
@@ -49,6 +52,7 @@ class RADOSGWCollector(object):
         # Prepare Requests Session
         self._session()
         self._last_collected = []
+        self.last_collect_time = 0.
         if COLLECT_INTERVAL:
             threading.Thread(target=self.collect_thread, daemon=True).start()
 
@@ -97,6 +101,9 @@ class RADOSGWCollector(object):
         duration = time.time() - start
         self._prometheus_metrics['scrape_duration_seconds'].add_metric(
             [], duration)
+        self.last_collect_time = time.time()
+        self._prometheus_metrics['last_scrape_timestamp'].add_metric(
+            [], self.last_collect_time)
 
         return list(self._prometheus_metrics.values())
 
@@ -238,8 +245,12 @@ class RADOSGWCollector(object):
                                   labels=["user", "cluster"]),
             'scrape_duration_seconds':
                 GaugeMetricFamily('radosgw_usage_scrape_duration_seconds',
-                                  'Ammount of time each scrape takes',
-                                  labels=[])
+                                  'Amount of time each scrape takes',
+                                  labels=[]),
+            'last_scrape_timestamp':
+                GaugeMetricFamily('last_scrape_timestamp',
+                                  'Last scrape timestamp',
+                                  labels=[]),
         }
 
     def _get_usage(self, entry):
@@ -507,12 +518,42 @@ def parse_args():
     return parser.parse_args()
 
 
+def readiness_app_wrapper(app, collector: RADOSGWCollector):
+    def readiness_app(environ, start_response):
+        if environ['PATH_INFO'] == '/health':
+            if not COLLECT_INTERVAL:
+                status = '200 OK'
+            else:
+                params = parse_qs(environ.get('QUERY_STRING', ''))
+                last_fetch_threshold = int(params.get('threshold', '120'))
+                status = '200 OK' if (time.time() - collector.last_collect_time) < last_fetch_threshold else \
+                    '503 Service Unavailable'
+            output = b''
+            # Return output
+            start_response(status, [])
+            return [output]
+        return app(environ, start_response)
+
+    return readiness_app
+
+
+def start_wsgi_server(collector, port, addr='', registry=REGISTRY):
+    """Starts a WSGI server for prometheus metrics as a daemon thread."""
+    app = make_wsgi_app(registry)
+    app = readiness_app_wrapper(app, collector)
+    httpd = make_server(addr, port, app, ThreadingWSGIServer)
+    t = threading.Thread(target=httpd.serve_forever)
+    t.daemon = True
+    t.start()
+
+
 def main():
     try:
         args = parse_args()
-        REGISTRY.register(RADOSGWCollector(
-            args.host, args.admin_entry, args.access_key, args.secret_key, args.cluster, args.insecure, args.timeout))
-        start_http_server(args.port)
+        collector = RADOSGWCollector(args.host, args.admin_entry, args.access_key, args.secret_key,
+                                     args.cluster, args.insecure, args.timeout)
+        REGISTRY.register(collector)
+        start_wsgi_server(collector, args.port)
         print(("Polling {0}. Serving at port: {1}".format(args.host, args.port)))
         while True:
             time.sleep(1)
