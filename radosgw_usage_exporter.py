@@ -379,15 +379,15 @@ class RADOSGWCollector(object):
                 bucket_usage_objects)
 
             if 'bucket_quota' in bucket:
+                quota = bucket['bucket_quota']
                 self._prometheus_metrics['bucket_quota_enabled'].add_metric(
-                    [bucket_name, bucket_owner, bucket_zonegroup, self.cluster_name, taglist],
-                    bucket['bucket_quota']['enabled'])
+                    [bucket_name, bucket_owner, bucket_zonegroup, self.cluster_name, taglist], quota['enabled'])
                 self._prometheus_metrics['bucket_quota_max_size'].add_metric(
                     [bucket_name, bucket_owner, bucket_zonegroup, self.cluster_name, taglist],
-                    bucket['bucket_quota']['max_size'])
+                    quota['max_size'])
                 self._prometheus_metrics['bucket_quota_max_objects'].add_metric(
                     [bucket_name, bucket_owner, bucket_zonegroup, self.cluster_name, taglist],
-                    bucket['bucket_quota']['max_objects'])
+                    quota['max_objects'])
 
             self._prometheus_metrics['bucket_shards'].add_metric(
                 [bucket_name, bucket_owner, bucket_zonegroup, self.cluster_name, taglist],
@@ -450,18 +450,18 @@ class RADOSGWCollector(object):
             self._prometheus_metrics['user_quota_enabled'].add_metric(
                 [user, self.cluster_name], quota['enabled'])
             self._prometheus_metrics['user_quota_max_size'].add_metric(
-                [user, self.cluster_name], quota['max_size'])
+                [user, self.cluster_name], quota['max_size'] if quota['enabled'] else -1)
             self._prometheus_metrics['user_quota_max_objects'].add_metric(
-                [user, self.cluster_name], quota['max_objects'])
+                [user, self.cluster_name], quota['max_objects'] if quota['enabled'] else -1)
 
         if 'bucket_quota' in user_info:
             quota = user_info['bucket_quota']
             self._prometheus_metrics['user_bucket_quota_enabled'].add_metric(
                 [user, self.cluster_name], quota['enabled'])
             self._prometheus_metrics['user_bucket_quota_max_size'].add_metric(
-                [user, self.cluster_name], quota['max_size'])
+                [user, self.cluster_name], quota['max_size'] if quota['enabled'] else -1)
             self._prometheus_metrics['user_bucket_quota_max_objects'].add_metric(
-                [user, self.cluster_name], quota['max_objects'])
+                [user, self.cluster_name], quota['max_objects'] if quota['enabled'] else -1)
 
 
 def parse_args():
